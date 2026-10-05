@@ -56,6 +56,9 @@ def power_sym(name, up):
             pin("power_in", 0, 0, 90 if up else 270, 0, name, 1, hide=True) + "))")
 for n in ("+3V3", "+5V", "VDDA", "VBAT"): lib.append(power_sym(n, True))
 lib.append(power_sym("GND", False))
+lib.append(sym_header("PWR_FLAG", "#FLG", "PWR_FLAG", power=True, extra="(pin_names (offset 0) hide) ") +
+  '  (symbol "PWR_FLAG_0_1" (polyline (pts (xy 0 0) (xy 0 1.27) (xy -1.016 1.905) (xy 0 2.54) (xy 1.016 1.905) (xy 0 1.27)) (stroke (width 0) (type default)) (fill (type none))))\n  (symbol "PWR_FLAG_1_1" ' +
+  pin("power_out", 0, 0, 90, 0, "pwr", 1, hide=True) + "))")
 
 # MCP6004: units 1-4 = op-amps, unit 5 = power
 OA_GFX = '(polyline (pts (xy -5.08 5.08) (xy -5.08 -5.08) (xy 5.08 0) (xy -5.08 5.08)) (stroke (width 0.254) (type default)) (fill (type background)))'
@@ -315,6 +318,19 @@ C("C27", "100n", 266.7, Y0 + 70.0, "+5V", "GND")
 text("Interface to MCU board (digital)", 330.0, Y0)
 conn(4, "J6", "MCU_DIG", 343.0, Y0 + 22.86, ["AFR_DAC", "CAN_TX", "CAN_RX", "GND"], "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
 
+
+flag_n = [0]
+def flag(net, x, y):
+    x, y = sr(x), sr(y); flag_n[0] += 1; r = f"#FLG{flag_n[0]:02d}"
+    body.append(f'''(symbol (lib_id "Local:PWR_FLAG") (at {x} {y} 0) (unit 1) (exclude_from_sim no) (in_bom no) (on_board yes) (dnp no) (uuid "{u()}")
+    {prop("Reference", r, x, y, True)}
+    {prop("Value", "PWR_FLAG", x + 1.27, y - 3.81)}
+    (pin "1" (uuid "{u()}"))
+    (instances (project "{PROJECT}" (path "/{ROOT}" (reference "{r}") (unit 1)))))''')
+    tie(net, x, y, r)
+text("Power flags (ERC: nets fed from connectors / regulators)", 304.8, 30.48)
+flag("+5V", 304.8, 40.64); flag("VBAT", 320.04, 40.64); flag("GND", 335.28, 40.64)
+
 # ---------------- output ----------------
 out = f'''(kicad_sch (version 20231120) (generator "afr_frontend_gen") (generator_version "1.0")
   (uuid "{ROOT}")
@@ -329,6 +345,14 @@ out = f'''(kicad_sch (version 20231120) (generator "afr_frontend_gen") (generato
   (sheet_instances (path "/" (page "1")))
 )
 '''
+import os
+_d = os.path.dirname(os.path.abspath(sys.argv[1])) if len(sys.argv) > 1 else "."
+_libsyms = [l.replace('(symbol "Local:', '(symbol "', 1) for l in lib]
+open(os.path.join(_d, "afr_local.kicad_sym"), "w").write(
+    '(kicad_symbol_lib (version 20231120) (generator "afr_frontend_gen") (generator_version "1.0")\n' +
+    "\n".join("  " + l.replace("\n", "\n  ") for l in _libsyms) + "\n)\n")
+open(os.path.join(_d, "sym-lib-table"), "w").write(
+    '(sym_lib_table\n  (version 7)\n  (lib (name "Local")(type "KiCad")(uri "${KIPRJMOD}/afr_local.kicad_sym")(options "")(descr "AFR controller generated symbols"))\n)\n')
 dst = sys.argv[1] if len(sys.argv) > 1 else "afr_frontend.kicad_sch"
 open(dst, "w").write(out)
 if "--pins" in sys.argv: json.dump(pins, open(dst + ".pins.json", "w"))

@@ -8,5 +8,6 @@ dalším spuštění generátoru přepíšou, proto upravujte buď skript, nebo 
   očíslovaných pinů). Vyžaduje KiCad 7 nebo novější (`kicad-cli`).
 - `afr_frontend_preview.pdf` – náhled (export z KiCadu).
 
-Neověřeno: ERC (kicad-cli 7 ho nemá), simulace, měření na sondě.
+ERC v KiCadu 10: původní běh hlásil 3 chyby (nenapájené sítě) a 144 varování (chybějící knihovna `Local`). Obojí je opravené (PWR_FLAG, `sym-lib-table` + `afr_local.kicad_sym`); po opravě ERC ještě neběžel.
+Neověřeno: simulace, měření na sondě.
 Piny a hodnoty TPS54202, pinout konektoru LSU a trim odpor sondy ověřit podle datasheetů.
