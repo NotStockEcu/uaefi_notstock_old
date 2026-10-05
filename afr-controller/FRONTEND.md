@@ -1,70 +1,68 @@
-# Analogový front-end LSU 4.9 (v0.1 – PŘEDBĚŽNÉ hodnoty)
+# Analogový front-end LSU 4.9 (v0.2)
 
-Hodnoty níže vycházejí z výpočtu, ne z měření. Před výrobou je nutné ověřit simulací
-(ngspice) a na prkénku s reálnou sondou. Pinout a parametry sondy ověřit proti Bosch datasheetu.
+Revize po porovnání s open-source modulem **rusEFI/FOME wideband, board_module rev C**
+(github.com/rusefi/wideband: `hardware/board_module/wideband_controller.kicad_sch`,
+`firmware/wideband_config.h`, `firmware/sampling.cpp`, `firmware/boards/f0_module`).
+Hodnoty označené „ref." jsou převzaté z tohoto ověřeného návrhu. Ostatní jsou moje a stále neověřené.
+Pinout a parametry sondy ještě ověřit proti Bosch datasheetu.
 
-## Piny sondy (ověřit)
-| Pin | Signál | Funkce |
+## Co se změnilo oproti v0.1
+| # | v0.1 (chyba / odchylka) | v0.2 |
 |---|---|---|
-| 1 | Ip (APE) | pumpovací proud |
-| 2 | VM (Vs/Ip) | společný / virtuální zem |
-| 3 | H- | topení – |
-| 4 | H+ | topení + |
-| 5 | Vs (RE) | Nernstova cela |
-| 6 | Rcal | trimovací rezistor (spread sondy) |
+| 1 | **„Žádný DC proud do Nernstovy cely"** – chybně | Cela dostává malý stálý proud ~20 µA: 62 kΩ z 3,3 V do uzlu Un (ref.). Bez něj nevzniká referenční kyslík. |
+| 2 | VM = 2,5 V z druhé reference | VM = VDDA/2 = 1,65 V (dělič 1k/1k + buffer + 10 Ω + 1 µF), VDDA = 3,3 V z REF3033 (ref.) |
+| 3 | Měření Ri přes střídavou vazbu (1 µF + 22 kΩ) | GPIO přímo přes 22 kΩ do uzlu Un, přepíná se 0/3,3 V; výpočet ve firmwaru (ref.) |
+| 4 | Vs a VM čtené samostatně | Rozdílový zesilovač gain 2,7: Un_sense = 2,7·(Un − VM) (ref.) |
+| 5 | Měření Ip: gain 8, střed 1,25 V, běžný opamp | Zero-drift opamp (AD8628) – offset přímo posouvá lambdu kolem Ip = 0. Střed na VM. |
+| 6 | Blok E: měření Rcal děličem | V ref. se Rtrim nečte; 61,9 Ω je zapojen mezi piny Rtrim a Ip. Blok E zrušen, otázka níže. |
+| 7 | MCP6004 označen jako nevhodný | Pro Nernst, VM a budič stačí (ref. je používá). Nevhodný je jen pro měření Ip. |
 
-## Princip
-1. Nernst: Vs - VM se má držet na **450 mV**. Odchylka -> PI regulátor ve firmwaru -> nastavení Ip.
-2. Ip teče pumpovací celou přes bočník 62 Ω; z úbytku se počítá lambda (tabulka Ip -> lambda).
-3. Ri Nernstovy cely (~300 Ω při 780 °C, ověřit) se měří pulzem proudu a řídí PWM topení.
+## Piny sondy (jména jako v ref.; pořadí na konektoru ověřit)
+LSU_Ip, LSU_Vm, LSU_Rtrim, LSU_Un, heater+ / heater-.
 
-Regulační smyčka Ip je ve firmwaru (difuze plynu je pomalá, stačí ~ stovky Hz), takže analogová část je jen budič + měření.
-
-## Referenční napětí
-- **VM = 2,5 V** z přesné reference (např. REF3425 / LM4040-2.5), buffer opampem schopným ±5 mA
-- **Vmid = 1,25 V** = VM děleno 2 (2x 10k 0,1 %) + buffer – střed pro měřicí zesilovače
-- ADC reference = VDDA 3,3 V (filtrovaná, ferrit + 1 µF + 100 nF)
+## Napájení analogu
+- VDDA = 3,3 V z REF3033 (ref.), filtr 1 µF + 100 nF. Opampy na 3,3 V (ref.).
+- VM = VDDA/2 z děliče 1k/1k, buffer opampem, 10 Ω do pinu VM, 1 µF na pinu (ref.).
 
 ## Blok A – budič Ip
-- DAC (0–3,3 V, střed 1,65 V) -> diferenční zesilovač, **zisk 0,5**, reference = VM
-- Vdrv = VM + 0,5·(Vdac − 1,65 V)  ->  rozsah VM ± 0,83 V
-- Vdrv -> bočník **62 Ω 0,1 %** -> pin Ip (přes 100 Ω ochranný rezistor mimo měřicí smyčku)
-- Pumpovací cela + bočník ~ 180 Ω -> potřebný rozsah ±3 mA ~ ±0,55 V, rezerva zajištěna
-- Rozlišení: 1 LSB DAC ~ 2 µA (po uzavření smyčky měřením je to dostatečné)
+- Ref.: PWM 46,8 kHz z MCU přes RC filtr a opamp v diferenční konfiguraci (68k vstupy, 10k||33 nF zpětná vazba), výstup přes 47 Ω.
+- Pro G431 navrhuji místo PWM použít **DAC**: nižší zvlnění. Zapojení opampu zůstane stejné; hodnoty ověřit simulací.
+- Řízení: PID ve firmwaru, **kP 50, kI 10000**, perioda 2 ms (ref.), výstup v mA.
+- Pumpu zapnout až když je sonda dost horká: teplota ≥ cíl − 200 °C (ref.), jinak Ip = 0, aby se sonda nepoškodila.
 
 ## Blok B – měření Ip
-- Diferenční zesilovač přes bočník, **zisk 8** (Rin 10k, Rf 80k, 0,1 %), reference Vmid = 1,25 V
-- Vout = 1,25 V + 8·(Ip·62 Ω)
-- Rozsah Ip -2…+3 mA: Vout = 0,26 … 2,74 V (v rozsahu ADC 0–3,3 V)
-- 1 LSB ADC (0,8 mV) ~ 1,6 µA; oversampling 16–64x zlepší rozlišení
-- RC filtr před ADC: 1 kΩ + 100 nF (~1,6 kHz)
+- Bočník **61,9 Ω** mezi LSU_Rtrim a LSU_Ip (ref.).
+- Rozdílový zesilovač AD8628, **gain 10** (10k vstupy, 100k zpětná vazba a referenční odpor k VM), střed na VM (ref.).
+- Rozsah ±(1,65 V / 10 / 61,9 Ω) = ±2,67 mA. Ip_mA = −1000 · Vsense / (10 · 61,9) (ref.).
+- Filtr před ADC 3,3 kΩ + 100 nF (ref.); vzorkování 2,5 kHz, ADC oversampling 24x, digitální filtr ~50 Hz.
+- Poznámka: ref. rozsah ±2,67 mA je těsný. Pokud sonda v čerstvém vzduchu dá > 2,5 mA, zvaž gain 8 (±3,3 mA).
 
-## Blok C – měření Vs (Nernst)
-- Sledovač opampem (vstupní proud pA, aby neprotékal DC proud Nernstovou celou)
-- Do ADC jde Vs i VM; Vs - VM ~ 450 mV
-- Vstup chráněn 10 kΩ + Schottkyho dvojice; filtr 100 nF
-- **Žádný DC proud do cely** (limit řádu µA)
+## Blok C – měření Nernstu
+- Buffer opampem z pinu Un (Un_sense_in), aby se nezatěžoval uzel.
+- Rozdílový zesilovač: 10k vstupy, 27k zpětná vazba a 27k k zemi, **gain 2,7** (ref.). 450 mV -> 1,215 V.
+- Cíl regulace: Nernst = **0,45 V** (ref.). Lambda platná, když je Nernst v pásmu 0,45 ± 0,1 V a lambda > 0,6.
 
-## Blok D – měření Ri (pulz)
-- GPIO MCU (0/3,3 V) přes **C 1 µF + R 22 kΩ** (střídavá vazba) do uzlu Vs
-- Amplituda proudu ~ ±75 µA -> ΔVs ~ ±22 mV na 300 Ω
-- ADC se vzorkuje synchronizovaně s hranou GPIO; Ri = ΔVs / ΔI
-- Parametry (R, C, kmitočet) doladit na prkénku
+## Blok D – Ri (ESR) a teplota
+- GPIO 0/3,3 V přes **22 kΩ** do uzlu Un; GPIO se přepíná při každém vzorku (ref.).
+- Ri = R / (Vcc / ΔV_AC − 1) − 10 Ω (sériový odpor VM) (ref.).
+- ΔV_AC se získá z tří posledních vzorků, aby se odečetl trend DC složky.
+- Teplota z tabulky Ri -> °C (ref., LSU 4.9): 80 Ω = 1030 °C, 300 Ω = 780 °C, 1000 Ω = 642 °C.
+- Cíl topení: **780 °C ~ 300 Ω** (ref.).
 
-## Blok E – Rcal
-- Rcal (trim) měřit děličem z VDDA přes přesný rezistor + ADC (vzorkovat jen při startu)
-
-## Topení (mimo front-end)
-Low-side N-MOSFET + PWM, bočník pro měření proudu topení. Předehřívací rampa proti kondenzátu.
+## Blok E – topení
+- Spínač low-side VND14NV04 (ref.), hradlo přes 1 kΩ + pull-down 1 kΩ, PWM z MCU.
+- Řídicí logika (ref.): předehřev 5 s, napětí topení 7,5 V − PID(Ri), timeout rozehřátí 60 s,
+  start až při baterii > 9,5 V, vypnutí pod 7 V.
+- Referenční modul bez měření napětí topení předpokládá 13 V po 5 s. Pro přesnější řízení přidat dělič (VBatt_Sense 100k/10k jako v ref.).
 
 ## Požadavky na součástky
-- Opampy: **RRIO, offset < 0,5 mV, vstupní proud pA**, napájení 5 V; např. OPA2376 / TLV9062 / TLV9064
-  (MCP6004 má offset až 4,5 mV – pro Vs 450 mV (±1 %) nevhodný)
-- Rezistory v měřicích zesilovačích a děliči 0,1 %, bočník 62 Ω 0,1 %
-- Kondenzátory C0G/X7R v filtrech
+- Ip měření: zero-drift opamp (AD8628 / OPA2188), rezistory 0,1 %, bočník 61,9 Ω 0,1 %.
+- Ostatní opampy: MCP6004 stačí (ref.).
+- Reference: REF3033 (3,3 V).
 
-## Ověřit před schématem
-- [ ] Pinout a Ri/Ip parametry z Bosch datasheetu LSU 4.9
-- [ ] Simulace budiče Ip (stabilita s indukční zátěží kabelu)
-- [ ] Nastavení Ri pulzu na reálné sondě
-- [ ] Ochrana proti zkratu pinů sondy na baterii (12 V)
+## Otevřené otázky
+- [ ] Trim odpor sondy: ref. ho nečte. Ověřit v Bosch datasheetu, zda je v proudové cestě a jestli ovlivňuje přesnost Ip.
+- [ ] Pinout konektoru LSU 4.9 a Ri / Ip parametry z Bosch datasheetu
+- [ ] Budič Ip s DAC místo PWM: ověřit stabilitu simulací
+- [ ] Ochrana pinů proti zkratu na baterii
+- [ ] Přepočet Ip -> lambda: tabulka je v `firmware/lambda_conversion.cpp` ref. repozitáře (licence ověřit před kopírováním)

@@ -5,7 +5,7 @@ Samostatný širokopásmový řadič s TFT displejem, analogovým výstupem 0–
 
 ## Architektura
 - MCU: STM32G431CBT6 (LQFP48, footprint kompatibilní s G474)
-- Bezčipové řízení LSU 4.9 (bez CJ125): regulátor Ip, měření Ri, PWM ohřevu ve firmwaru
+- Bezčipové řízení LSU 4.9 (bez CJ125), zapojení podle ověřeného open-source modulu rusEFI wideband (viz FRONTEND.md)
 - Display: TFT 2,0" / 2,4" ST7789, 240x320, SPI + DMA, částečné překreslování (framebuffer se do 32 kB RAM nevejde)
 - Ovládání: 2–3 tlačítka
 
