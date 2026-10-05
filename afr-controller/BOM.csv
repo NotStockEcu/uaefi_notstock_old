@@ -1,13 +1,13 @@
 Blok,Soucastka,Poznamka
-MCU,STM32G431CBT6,LQFP48; footprint kompatibilni s G474
 Topeni LSU,VND14NV04 (low-side) + 1k hradlo/pull-down,PWM; pripadne dale delic VBatt 100k/10k
 Front-end,AD8628 (zero-drift) pro mereni Ip + MCP6004 pro Nernst/VM/budic + REF3033 + rezistory 0.1 %,viz FRONTEND.md
-Display,TFT 2.0-2.4in ST7789 SPI 240x320,podsviceni PWM
-Ovladani,2-3 tlacitka,
 Konektory,LSU 6-pin + napajeni + vystupy,
 SWD,Tag-Connect nebo 2x5 pinhead,
 Buck 5V,TPS54202 + L 15uH (overit) + Cin 10u 50V + Cout 22u + FB 73.2k/10k,Pinout z pameti - overit podle datasheetu
 LDO 3.3V,AP2112K-3.3,5 V -> 3.3 V
 CAN transceiver,TJA1051T/3 + PESD2CAN + 120 ohm terminator pres jumper,rusEFI wideband protokol
-Vystup 0-5V buffer,MCP6001 (5 V napajeni) zisk 1.51 + RC 220R/100n,10-20 AFR = 0-5 V
 Ochrana napajeni,F1 3A + P-MOSFET 60V + zener 12V + SMBJ24A,
+MCU,STM32G431CBT6 (LQFP-48) + krystal 8 MHz + 2x 15p + blokovaci kondenzatory,symbol ze standardni knihovny KiCadu
+Display,TFT modul 2.0in ST7789 SPI 240x320 (8pinovy konektor GND VCC SCL SDA RES DC CS BLK),pinout modulu overit
+Ovladani,3 tlacitka pres konektor (BTN1-3 + GND),
+Vystup 0-5V buffer,MCP6001T-I/OT (SOT-23-5; NE varianta U - jiny pinout) zisk 1.51 + RC 220R/100n,10-20 AFR = 0-5 V

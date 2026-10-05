@@ -33,6 +33,26 @@ AEM X-series může přijít později jako volitelný režim (formát zatím neo
 - AFR (pro displej) = lambda · stechiometrie zvoleného paliva
 - Volitelný 120 Ω terminátor přes jumper
 
+## MCU – přiřazení pinů (STM32G431CBT6, LQFP-48)
+Funkce pinů jsou ověřené proti seznamu alternativních funkcí ve standardním symbolu KiCadu (generátor to kontroluje).
+| Pin | Funkce | Signál |
+|---|---|---|
+| PA0 | ADC1_IN1 | Ip_sense (proud pumpy) |
+| PA1 | ADC1_IN2 | Un_sense (Nernst) |
+| PA2 | ADC1_IN3 | VM |
+| PA3 | ADC1_IN4 | VBAT_SENSE (dělič 100k/10k) |
+| PA4 | DAC1_OUT1 | Ip_dac (budič pumpy) |
+| PA5 | DAC1_OUT2 | AFR_DAC (výstup 0–5 V) |
+| PA8 | TIM1_CH1 | heater_pwm |
+| PB0 | GPIO | Nernst_esr_drive (Ri pulz) |
+| PA11 / PA12 | FDCAN1_RX / TX | CAN |
+| PB13 / PB15 | SPI2_SCK / MOSI | TFT |
+| PB12 / PB10 / PB11 | GPIO | TFT CS / DC / RES |
+| PB4 | TIM3_CH1 | podsvícení TFT (PWM) |
+| PB5 / PB6 / PB7 | GPIO | tlačítka |
+| PF0 / PF1 | RCC_OSC | krystal 8 MHz |
+| PA13 / PA14 / PG10 | SWDIO / SWCLK / NRST | SWD |
+
 ## Napájení a ochrany
 12 V auto: pojistka, ochrana proti přepólování, TVS (SMBJ24A), buck 5 V, LDO 3,3 V.
 Ohřev LSU: low-side MOSFET + PWM, měření proudu (shunt), předehřívací rampa proti kondenzátu.

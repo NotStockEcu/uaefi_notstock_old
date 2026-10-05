@@ -15,6 +15,5 @@ Piny a hodnoty TPS54202, pinout konektoru LSU a trim odpor sondy ověřit podle 
 ## Kontroly
 - `check_netlist.py` – netlist z KiCadu vs. zamýšlené zapojení + pravidlo „napájecí vstup bez zdroje".
 - `check_footprints.py` – každé číslo pinu symbolu má pad ve footprintu.
-- **Co kontroly nepokryjí:** zda číslo pinu odpovídá skutečnému pinoutu dílu. Z paměti a neověřeno: REF3033 (SOT-23-3), TPS54202 (SOT-23-6),
-  VND14NV04 (footprint TO-252-2 je placeholder), P-MOSFET (hodnota je zástupná, SOT-23 G1/S2/D3), konektor sondy LSU.
+- **Co kontroly nepokryjí:** zda číslo pinu odpovídá skutečnému pinoutu dílu. Ověřeno proti standardním symbolům KiCadu 7: REF3033, TPS54202, AP2112K-3.3, TJA1051T-3, MCP6004, MCP6001 (varianta T-I/OT, ne „U"), STM32G431CBTx (symbol převzatý přímo). AD8628 a VND14NV04 odpovídají referenčnímu modulu rusEFI rev C. Z paměti a neověřeno:   PESD2CAN, VND14NV04 (footprint TO-252-2 je placeholder), P-MOSFET (hodnota je zástupná, SOT-23 G1/S2/D3), konektor sondy LSU.
 - Diody: pin 1 = katoda, pin 2 = anoda (konvence KiCadu a footprintů D_SOD-323 / D_SMB).

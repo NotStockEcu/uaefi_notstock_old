@@ -5,7 +5,7 @@ Topology follows the MIT-licensed rusEFI/FOME wideband module rev C
 (github.com/rusefi/wideband, Copyright (c) 2023 Matthew Kennedy), see ../FRONTEND.md.
 Every pin is tied to its net by a net label or power symbol (no drawn wires).
 """
-import uuid, sys, json
+import uuid, sys, json, os, re
 
 PROJECT = "afr_frontend"
 ROOT = str(uuid.uuid4())
@@ -100,7 +100,7 @@ def conn_sym(n):
     for i in range(n):
         s += pin("passive", -5.08, round(top - 2.54 * i, 3), 0, 3.81, f"Pin_{i+1}", i + 1)
     return s + "))"
-lib.append(conn_sym(6)); lib.append(conn_sym(9))
+lib.append(conn_sym(6))
 
 # ---------------- placement helpers ----------------
 def inst(libid, ref, val, x, y, unit=1, npins=(), fp=""):
@@ -212,11 +212,6 @@ J = 154.94; Jy = 213.36
 inst("Conn_01x06", "J1", "LSU_4.9", J, Jy, npins=range(1, 7), fp="Connector_Molex:Molex_Micro-Fit_3.0_43650-0600_1x06_P3.00mm_Horizontal")
 for i, n in enumerate(["LSU_Ip", "LSU_Vm", "LSU_Hminus", "VBAT", "LSU_Un", "LSU_Rtrim"]):
     tie(n, J - 5.08, Jy - 6.35 + 2.54 * i, f"J1.{i+1}", 180)
-text("Interface to MCU board (analog, 3.3 V)", 190.5, 190.5)
-J2 = 210.82; J2y = 215.9
-inst("Conn_01x09", "J2", "MCU_IF", J2, J2y, npins=range(1, 10), fp="Connector_PinHeader_2.54mm:PinHeader_1x09_P2.54mm_Vertical")
-for i, n in enumerate(["Ip_dac", "Ip_sense", "Un_sense", "VM", "heater_pwm", "Nernst_esr_drive_49", "VDDA", "+3V3", "GND"]):
-    tie(n, J2 - 5.08, J2y - 10.16 + 2.54 * i, f"J2.{i+1}", 180)
 
 
 # ============ generic IC / 2-pin symbols for power, CAN and output sections ============
@@ -261,7 +256,7 @@ make_ic("TJA1051T-3", "U", [(1, "TXD", "input"), (4, "RXD", "output"), (3, "VCC"
         [(7, "CANH", "bidirectional"), (6, "CANL", "bidirectional"), (8, "S", "input")])
 make_ic("PESD2CAN", "D", [(1, "IO1", "passive"), (2, "IO2", "passive")], [(3, "GND", "passive")], w=10.16)
 make_ic("Q_PMOS", "Q", [(1, "G", "input")], [(3, "D", "passive"), (2, "S", "passive")], w=7.62)
-lib.append(conn_sym(2)); lib.append(conn_sym(4)); lib.append(conn_sym(3))
+lib.append(conn_sym(2)); lib.append(conn_sym(4)); lib.append(conn_sym(3)); lib.append(conn_sym(8)); lib.append(conn_sym(5))
 def two(libid, ref, val, x, y, top, bot, fp=""):
     x, y = sr(x), sr(y)
     inst(libid, ref, val, x, y, npins=(1, 2), fp=fp)
@@ -317,9 +312,7 @@ R("R49", "220", 279.4, Y0 + 83.82 - 3.81 + 3.81, "AFR_AMP", "AFR_OUT"); C("C26",
 conn(2, "J4", "AFR_OUT_0_5V", 308.0, Y0 + 90.0, ["AFR_OUT", "GND"], "Connector_Molex:Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal")
 C("C27", "100n", 266.7, Y0 + 70.0, "+5V", "GND")
 
-# ---------------- MCU digital interface ----------------
-text("Interface to MCU board (digital)", 330.0, Y0)
-conn(4, "J6", "MCU_DIG", 343.0, Y0 + 22.86, ["AFR_DAC", "CAN_TX", "CAN_RX", "GND"], "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
+
 
 
 flag_n = [0]
@@ -334,6 +327,71 @@ def flag(net, x, y):
 text("Power flags (ERC: nets fed from connectors / regulators)", 304.8, 30.48)
 flag("+5V", 304.8, 40.64); flag("VBAT", 320.04, 40.64); flag("GND", 335.28, 40.64)
 
+
+# ============ MCU board section (STM32G431CBT6, symbol imported from KiCad stock library) ============
+import copy
+from kiutils.symbol import SymbolLib as _SL
+_STOCK = os.environ.get("KICAD_SYMBOLS", "/usr/share/kicad/symbols")
+_L = _SL.from_file(f"{_STOCK}/MCU_ST_STM32G4.kicad_sym")
+_by = {x.entryName: x for x in _L.symbols}
+_child = _by["STM32G431CBTx"]; _mcu = copy.deepcopy(_by[_child.extends])
+_mcu.entryName = "STM32G431CBTx"; _mcu.extends = None
+for _p in _mcu.properties:
+    for _q in _child.properties:
+        if _p.key == _q.key: _p.value = _q.value
+for _q in _child.properties:
+    if all(_p.key != _q.key for _p in _mcu.properties): _mcu.properties.append(copy.deepcopy(_q))
+_txt = _mcu.to_sexpr(indent=0, newline=False).replace('(symbol "STM32G431CBTx"', '(symbol "Local:STM32G431CBTx"', 1)
+_txt = _txt.replace(_child.extends + '_', 'STM32G431CBTx_')
+lib.append(_txt)
+MCU_PINS = {str(p.number): (p.name, p.position.X, p.position.Y) for u_ in _mcu.units for p in u_.pins}
+MCU_POWER = {"1": "+3V3", "24": "+3V3", "36": "+3V3", "48": "+3V3", "21": "VDDA", "20": "VDDA",
+             "19": "GND", "23": "GND", "35": "GND", "47": "GND"}
+MCU_SIG = {"PA0": "Ip_sense", "PA1": "Un_sense", "PA2": "VM", "PA3": "VBAT_SENSE", "PA4": "Ip_dac", "PA5": "AFR_DAC",
+           "PA8": "heater_pwm", "PA11": "CAN_RX", "PA12": "CAN_TX", "PA13": "SWDIO", "PA14": "SWCLK",
+           "PB0": "Nernst_esr_drive_49", "PB4": "TFT_BL_MCU", "PB5": "BTN1", "PB6": "BTN2", "PB7": "BTN3", "PB8": "BOOT0",
+           "PB10": "TFT_DC", "PB11": "TFT_RES", "PB12": "TFT_CS", "PB13": "SPI_SCK", "PB15": "SPI_MOSI",
+           "PF0": "OSC_IN", "PF1": "OSC_OUT", "PG10": "NRST"}
+def mcu_inst(ref, x, y):
+    x, y = sr(x), sr(y)
+    inst("STM32G431CBTx", ref, "STM32G431CBT6", x, y, npins=tuple(MCU_PINS), fp="Package_QFP:LQFP-48_7x7mm_P0.5mm")
+    for num, (nm, px, py) in MCU_PINS.items():
+        sx, sy = snap(x + px), snap(y - py)
+        net = MCU_POWER.get(num) or MCU_SIG.get(nm)
+        if net: tie(net, sx, sy, f"{ref}.{num}", 180 if px < 0 else 0)
+        else: body.append(f'(no_connect (at {sx} {sy}) (uuid "{u()}"))')
+two_pin("Crystal", "Y", RECT)
+EXPECT = {"PA0": "ADC1_IN1", "PA1": "ADC1_IN2", "PA2": "ADC1_IN3", "PA3": "ADC1_IN4", "PA4": "DAC1_OUT1", "PA5": "DAC1_OUT2",
+          "PA8": "TIM1_CH1", "PA11": "FDCAN1_RX", "PA12": "FDCAN1_TX", "PA13": "SYS_JTMS-SWDIO", "PA14": "SYS_JTCK-SWCLK",
+          "PB4": "TIM3_CH1", "PB13": "SPI2_SCK", "PB15": "SPI2_MOSI", "PF0": "RCC_OSC_IN", "PF1": "RCC_OSC_OUT"}
+_alt = {}
+for _blk in _txt.split("(pin ")[1:]:
+    _m = re.search(r'\(name "([^"]+)"', _blk)
+    if _m: _alt.setdefault(_m.group(1), set()).update(re.findall(r'\(alternate "([^"]+)"', _blk))
+for _n, _f in EXPECT.items():
+    if _f not in _alt.get(_n, set()): print(f"AF CHECK FAILED: {_n} has no {_f}; alternates: {sorted(_alt.get(_n, []))}")
+
+
+MX, MY = 450.0, 130.0
+text("MCU: STM32G431CBT6 (pin functions from memory - verify AF in CubeMX)", MX - 25.4, MY - 55.88)
+mcu_inst("U2", MX, MY)
+# supply decoupling
+for k, (ref, val, net) in enumerate([("C30", "100n", "+3V3"), ("C31", "100n", "+3V3"), ("C32", "100n", "+3V3"), ("C33", "4.7u", "+3V3"),
+                                     ("C34", "1u", "VDDA"), ("C35", "100n", "VDDA"), ("C36", "100n", "+3V3")]):
+    C(ref, val, 380.0 + 12.7 * k, 40.0, net, "GND")
+# reset, boot0
+C("C37", "100n", 380.0, 75.0, "NRST", "GND"); R("R62", "10k", 392.7, 75.0, "BOOT0", "GND")
+# crystal 8 MHz
+two("Crystal", "Y1", "8 MHz", 392.7, 110.0, "OSC_IN", "OSC_OUT", fp="Crystal:Crystal_SMD_5032-2Pin_5.0x3.2mm")
+C("C38", "15p", 380.0, 120.0, "OSC_IN", "GND"); C("C39", "15p", 405.4, 120.0, "OSC_OUT", "GND")
+# battery sense
+R("R60", "100k", 380.0, 150.0, "VBAT", "VBAT_SENSE"); R("R61", "10k", 380.0, 165.0, "VBAT_SENSE", "GND"); C("C40", "1u", 392.7, 165.0, "VBAT_SENSE", "GND")
+# TFT, buttons, SWD
+text("TFT module (ST7789 SPI), buttons, SWD", 500.0, MY - 55.88)
+R("R63", "100", 500.0, 80.0, "TFT_BL_MCU", "TFT_BL")
+conn(8, "J7", "TFT_ST7789", 520.0, 95.0, ["GND", "+3V3", "SPI_SCK", "SPI_MOSI", "TFT_RES", "TFT_DC", "TFT_CS", "TFT_BL"], "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical")
+conn(4, "J8", "BUTTONS", 520.0, 130.0, ["BTN1", "BTN2", "BTN3", "GND"], "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
+conn(5, "J9", "SWD", 520.0, 160.0, ["+3V3", "SWDIO", "SWCLK", "NRST", "GND"], "Connector_PinHeader_2.54mm:PinHeader_1x05_P2.54mm_Vertical")
 # ---------------- output ----------------
 out = f'''(kicad_sch (version 20231120) (generator "afr_frontend_gen") (generator_version "1.0")
   (uuid "{ROOT}")
