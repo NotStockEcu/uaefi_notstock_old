@@ -209,7 +209,7 @@ R("R25", "1k", 43.18, 205.74, "heater_pwm", "HEATER_GATE"); R("R26", "1k", 43.18
 # Connectors
 text("LSU 4.9 connector (pin order to be verified against the Bosch datasheet)", 134.62, 190.5)
 J = 154.94; Jy = 213.36
-inst("Conn_01x06", "J1", "LSU_4.9", J, Jy, npins=range(1, 7), fp="Connector_Molex:Molex_Micro-Fit_3.0_43650-0600")
+inst("Conn_01x06", "J1", "LSU_4.9", J, Jy, npins=range(1, 7), fp="Connector_Molex:Molex_Micro-Fit_3.0_43650-0600_1x06_P3.00mm_Horizontal")
 for i, n in enumerate(["LSU_Ip", "LSU_Vm", "LSU_Hminus", "VBAT", "LSU_Un", "LSU_Rtrim"]):
     tie(n, J - 5.08, Jy - 6.35 + 2.54 * i, f"J1.{i+1}", 180)
 text("Interface to MCU board (analog, 3.3 V)", 190.5, 190.5)
@@ -251,19 +251,22 @@ two_pin("Fuse", "F", RECT)
 two_pin("L", "L", RECT)
 DIODE = ('(polyline (pts (xy -1.27 1.27) (xy 1.27 1.27) (xy 0 -1.27) (xy -1.27 1.27)) (stroke (width 0.254) (type default)) (fill (type none)))'
          '(polyline (pts (xy -1.27 -1.27) (xy 1.27 -1.27)) (stroke (width 0.254) (type default)) (fill (type none)))')
-two_pin("D", "D", DIODE)       # pin 1 = anode (top), pin 2 = cathode (bottom): anode up -> drawn triangle points down
+lib.append(sym_header("D", "D", "D", extra="(pin_numbers hide) (pin_names (offset 0)) ") +
+  f'  (symbol "D_0_1" {DIODE})\n  (symbol "D_1_1" ' +
+  pin("passive", 0, 3.81, 270, 1.27, "A", 2) + pin("passive", 0, -3.81, 90, 1.27, "K", 1) + "))")   # pin 1 = K, pin 2 = A (KiCad / footprint convention)       # pin 1 = anode (top), pin 2 = cathode (bottom): anode up -> drawn triangle points down
 make_ic("TPS54202", "U", [(3, "VIN", "power_in"), (5, "EN", "input"), (4, "FB", "input"), (1, "GND", "power_in")],
         [(6, "BOOT", "passive"), (2, "SW", "output")])
 make_ic("AP2112K-3.3", "U", [(1, "VIN", "power_in"), (3, "EN", "input"), (2, "GND", "power_in")], [(5, "VOUT", "power_out"), (4, "NC", "no_connect")])
 make_ic("TJA1051T-3", "U", [(1, "TXD", "input"), (4, "RXD", "output"), (3, "VCC", "power_in"), (5, "VIO", "power_in"), (2, "GND", "power_in")],
         [(7, "CANH", "bidirectional"), (6, "CANL", "bidirectional"), (8, "S", "input")])
 make_ic("PESD2CAN", "D", [(1, "IO1", "passive"), (2, "IO2", "passive")], [(3, "GND", "passive")], w=10.16)
-make_ic("Q_PMOS", "Q", [(1, "G", "input")], [(2, "D", "passive"), (3, "S", "passive")], w=7.62)
+make_ic("Q_PMOS", "Q", [(1, "G", "input")], [(3, "D", "passive"), (2, "S", "passive")], w=7.62)
 lib.append(conn_sym(2)); lib.append(conn_sym(4)); lib.append(conn_sym(3))
 def two(libid, ref, val, x, y, top, bot, fp=""):
     x, y = sr(x), sr(y)
     inst(libid, ref, val, x, y, npins=(1, 2), fp=fp)
-    tie(top, x, y - 3.81, f"{ref}.1", 90); tie(bot, x, y + 3.81, f"{ref}.2", 270)
+    p_top, p_bot = (2, 1) if libid == "D" else (1, 2)      # diode: top = anode = pin 2
+    tie(top, x, y - 3.81, f"{ref}.{p_top}", 90); tie(bot, x, y + 3.81, f"{ref}.{p_bot}", 270)
 def conn(n, ref, val, x, y, names, fp):
     x, y = sr(x), sr(y)
     inst(f"Conn_01x{n:02d}", ref, val, x, y, npins=range(1, n + 1), fp=fp)
@@ -273,9 +276,9 @@ def conn(n, ref, val, x, y, names, fp):
 # ---------------- power input and protection ----------------
 Y0 = 254.0
 text("Power input: fuse, reverse-polarity P-MOSFET, TVS", 25.4, Y0)
-conn(4, "J3", "PWR_CAN", 38.1, Y0 + 20.32, ["VBAT_IN", "GND", "CAN_H_EXT", "CAN_L_EXT"], "Connector_Molex:Molex_Micro-Fit_3.0_43650-0400")
+conn(4, "J3", "PWR_CAN", 38.1, Y0 + 20.32, ["VBAT_IN", "GND", "CAN_H_EXT", "CAN_L_EXT"], "Connector_Molex:Molex_Micro-Fit_3.0_43650-0400_1x04_P3.00mm_Horizontal")
 two("Fuse", "F1", "3A", 60.96, Y0 + 15.24, "VBAT_IN", "VBAT_F", fp="Fuse:Fuse_1206_3216Metric")
-ic_inst("Q_PMOS", "Q2", "P-MOS 60V (e.g. DMP6050)", 88.9, Y0 + 22.86, {"1": "PMOS_G", "2": "VBAT_F", "3": "VBAT"}, fp="Package_TO_SOT_SMD:SOT-23")
+ic_inst("Q_PMOS", "Q2", "P-MOS >=40V >=4A, SOT-23 G1 S2 D3", 88.9, Y0 + 22.86, {"1": "PMOS_G", "3": "VBAT_F", "2": "VBAT"}, fp="Package_TO_SOT_SMD:SOT-23")
 R("R40", "10k", 88.9, Y0 + 38.1, "PMOS_G", "GND")
 two("D", "D1", "Zener 12V", 101.6, Y0 + 38.1, "PMOS_G", "VBAT", fp="Diode_SMD:D_SOD-323")
 two("D", "D2", "SMBJ24A", 114.3, Y0 + 38.1, "VBAT", "GND", fp="Diode_SMD:D_SMB")
@@ -285,7 +288,7 @@ C("C20", "10u 50V", 127.0, Y0 + 38.1, "VBAT", "GND", fp="Capacitor_SMD:C_1206_32
 text("5 V buck (TPS54202; pinout and values from memory - VERIFY against datasheet)", 25.4, Y0 + 55.88)
 ic_inst("TPS54202", "U6", "TPS54202", 63.5, Y0 + 76.2, {"3": "VBAT", "5": "VBAT", "4": "FB5", "1": "GND", "6": "BOOT5", "2": "SW5"}, fp="Package_TO_SOT_SMD:SOT-23-6")
 C("C21", "100n", 91.44, Y0 + 66.04, "BOOT5", "SW5")
-two("L", "L1", "15u (verify)", 104.14, Y0 + 76.2, "SW5", "+5V", fp="Inductor_SMD:L_Bourns_SRN6045")
+two("L", "L1", "15u (verify)", 104.14, Y0 + 76.2, "SW5", "+5V", fp="Inductor_SMD:L_Bourns_SRN6045TA")
 C("C22", "22u", 116.84, Y0 + 83.82, "+5V", "GND", fp="Capacitor_SMD:C_1206_3216Metric")
 R("R41", "73.2k", 129.54, Y0 + 70.0 + 0.0, "+5V", "FB5"); R("R42", "10k", 129.54, Y0 + 85.0 + 0.0, "FB5", "GND")
 
@@ -311,7 +314,7 @@ tie("AFR_DAC", x9 - 7.62, y9 + 2.54, "U9.+", 180); tie("AFR_FB", x9 - 7.62, y9 -
 tie("AFR_AMP", x9 + 7.62, y9, "U9.out", 0); tie("+5V", x9, y9 - 7.62, "U9.V+"); tie("GND", x9, y9 + 7.62, "U9.V-")
 R("R47", "5.1k", 238.76, Y0 + 70.0, "AFR_AMP", "AFR_FB"); R("R48", "10k", 238.76, Y0 + 95.0, "AFR_FB", "GND")
 R("R49", "220", 279.4, Y0 + 83.82 - 3.81 + 3.81, "AFR_AMP", "AFR_OUT"); C("C26", "100n", 292.1, Y0 + 90.0, "AFR_OUT", "GND")
-conn(2, "J4", "AFR_OUT_0_5V", 308.0, Y0 + 90.0, ["AFR_OUT", "GND"], "Connector_Molex:Molex_Micro-Fit_3.0_43650-0200")
+conn(2, "J4", "AFR_OUT_0_5V", 308.0, Y0 + 90.0, ["AFR_OUT", "GND"], "Connector_Molex:Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal")
 C("C27", "100n", 266.7, Y0 + 70.0, "+5V", "GND")
 
 # ---------------- MCU digital interface ----------------
