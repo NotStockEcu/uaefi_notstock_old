@@ -1,13 +1,13 @@
 Blok,Soucastka,Poznamka
 MCU,STM32G431CBT6,LQFP48; footprint kompatibilni s G474
-Buck 12->5V,TPS54202 (nebo ekvivalent),vstup min. 28 V
-LDO 3.3V,AP2112K-3.3 / MCP1700,MCU + CAN + display
-Ochrana vstupu,SMBJ24A + pojistka 3 A + P-MOSFET proti prepoleni,
 Topeni LSU,VND14NV04 (low-side) + 1k hradlo/pull-down,PWM; pripadne dale delic VBatt 100k/10k
 Front-end,AD8628 (zero-drift) pro mereni Ip + MCP6004 pro Nernst/VM/budic + REF3033 + rezistory 0.1 %,viz FRONTEND.md
-Vystup 0-5V,DAC MCU + opamp zisk ~1.515 + RC filtr,10-20 AFR = 0-5 V
-CAN,TJA1051T/3 + TVS + 120 ohm jumper,AEM X-series
 Display,TFT 2.0-2.4in ST7789 SPI 240x320,podsviceni PWM
 Ovladani,2-3 tlacitka,
 Konektory,LSU 6-pin + napajeni + vystupy,
 SWD,Tag-Connect nebo 2x5 pinhead,
+Buck 5V,TPS54202 + L 15uH (overit) + Cin 10u 50V + Cout 22u + FB 73.2k/10k,Pinout z pameti - overit podle datasheetu
+LDO 3.3V,AP2112K-3.3,5 V -> 3.3 V
+CAN transceiver,TJA1051T/3 + PESD2CAN + 120 ohm terminator pres jumper,rusEFI wideband protokol
+Vystup 0-5V buffer,MCP6001 (5 V napajeni) zisk 1.51 + RC 220R/100n,10-20 AFR = 0-5 V
+Ochrana napajeni,F1 3A + P-MOSFET 60V + zener 12V + SMBJ24A,
