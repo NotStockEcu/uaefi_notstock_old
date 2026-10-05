@@ -16,16 +16,21 @@ Samostatný širokopásmový řadič s TFT displejem, analogovým výstupem 0–
 - Výstup při zahřívání / chybě sondy: **TBD** (rozhodnout podle vstupu ECU)
 - Realizace: DAC MCU (0–3,3 V) -> rail-to-rail opamp, zisk ~1,515 -> RC filtr -> ochrana
 
-## CAN – AEM X-series (ověřit proti datasheetu AEM 30-0300 před implementací)
-- 500 kbit/s, 29bitové ID, výchozí 0x00000180
-- Rámec 8 bajtů, big-endian:
-  - B0–B1: lambda, 0,0001 λ/bit (uint16)
-  - B2–B3: kyslík, 0,001 %/bit (int16)
-  - B4: napájení, 0,1 V/bit
-  - B5: rezervováno
-  - B6: příznaky (platnost lambdy, stav sondy)
-  - B7: chybové příznaky
-- AFR = lambda * stechiometrie (zvolené palivo, např. benzín 14,7)
+## CAN – rusEFI wideband protokol (převzato z rusefi/wideband, `for_rusefi/wideband_can.h`)
+Zvoleno proto, aby šlo zařízení připojit k rusEFI/FOME a dalším jednotkám, které tento formát umí.
+AEM X-series může přijít později jako volitelný režim (formát zatím neověřen).
+- 500 kbit/s, standardní 11bitová ID, vysílání každých 10 ms
+- Základní ID **0x190 + 2·(kanál + CanIndexOffset)**; každý kanál posílá 2 rámce
+- Rámec 0 (ID 0x190…), 8 bajtů, little-endian (struktura `StandardData`):
+  - B0 Version = 0xA0 (RUSEFI_WIDEBAND_VERSION)
+  - B1 Valid (1 = topení běží v uzavřené smyčce a lambda je platná)
+  - B2–B3 Lambda, 0,0001 λ/bit (uint16; 0 pokud není platná)
+  - B4–B5 teplota sondy v °C
+  - B6–B7 rezerva
+- Rámec 1 (ID 0x191…), `DiagData`: ESR (uint16), Nernst DC v mV (uint16), PumpDuty (uint8, 255 = 100 %), Status (uint8), HeaterDuty (uint8), rezerva
+- Status: 0 Preheat, 1 Warmup, 2 RunningClosedLoop, 3 SensorDidntHeat, 4 SensorOverheat, 5 SensorUnderheat
+- Lambda je platná, když Nernst je v pásmu 0,45 ± 0,1 V a lambda > 0,6
+- AFR (pro displej) = lambda · stechiometrie zvoleného paliva
 - Volitelný 120 Ω terminátor přes jumper
 
 ## Napájení a ochrany
