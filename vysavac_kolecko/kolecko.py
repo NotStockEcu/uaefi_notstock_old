@@ -27,9 +27,16 @@ AXLE_D     = 7.0    # průměr osy
 BORE_CLR   = 0.3    # vůle díry na ose (7.3 mm díra)
 BOSS_D     = 13.0   # vnější průměr středového pouzdra
 BOSS_EXT   = 5.0    # o kolik pouzdro přečnívá na vnitřní straně (jako originál)
-SNAP       = False  # True = rozříznuté pouzdro se zobáčky dovnitř (do drážky na ose)
-SNAP_LIP   = 0.5    # o kolik zobáček zužuje díru
-SNAP_SLOT_L= 6.0    # délka zářezů
+# --- zácvak na osu (jako originál: 4 pružné prsty se zobáčkem dovnitř) ---
+SNAP       = True   # False = hladká díra bez zácvaku
+SNAP_N     = 4      # počet prstů
+SNAP_L     = 10.0   # délka prstů (od konce pouzdra)
+SNAP_OD    = 10.5   # vnější průměr pouzdra v oblasti prstů (tenčí stěna = pružnější)
+SNAP_SLOT  = 1.2    # šířka zářezu mezi prsty
+SNAP_ID    = 6.0    # vnitřní průměr zobáčku (= průměr dna drážky na ose, spíš o 0,1–0,2 menší)
+SNAP_LIP_W = 1.5    # šířka zobáčku (= šířka drážky na ose, o 0,2 menší)
+SNAP_POS   = 0.0    # vzdálenost zobáčku od konce pouzdra
+SNAP_LEAD  = 1.0    # náběh (zkosení) na vstupu, aby osa prsty rozevřela
 TIRE_CLR   = 0.1    # vůle mezi obručí a nábojem (TPU se navléká s předpětím)
 # --------------------------------------------
 
@@ -69,28 +76,42 @@ def make_hub():
         hub = hub.union(rib)
     # středové pouzdro
     boss_len = W + BOSS_EXT
-    hub = hub.union(cq.Workplane("XY").circle(BOSS_D / 2).extrude(boss_len))
+    z_split = boss_len - SNAP_L if SNAP else boss_len
+    hub = hub.union(cq.Workplane("XY").circle(BOSS_D / 2).extrude(z_split))
+    if SNAP:
+        hub = hub.union(cq.Workplane("XY").workplane(offset=z_split - 1.0)
+                        .circle(BOSS_D / 2).workplane(offset=1.0)
+                        .circle(SNAP_OD / 2).loft())
+        hub = hub.union(ring(SNAP_OD / 2, BORE_D / 2, SNAP_L, z_split))
     hub = hub.cut(cq.Workplane("XY").circle(BORE_D / 2).extrude(boss_len))
-    # sražení vstupu díry
-    hub = hub.cut(cq.Workplane("XY").workplane(offset=boss_len - 0.8)
-                  .circle(BORE_D / 2).workplane(offset=0.8)
-                  .circle(BORE_D / 2 + 0.8).loft())
 
     if SNAP:
-        # 4 zářezy + zobáček dovnitř na konci pouzdra
-        for a in (0, 90):
-            slot = (cq.Workplane("XY").workplane(offset=boss_len - SNAP_SLOT_L)
-                    .rect(BOSS_D + 2, 1.2).extrude(SNAP_SLOT_L)
-                    .rotate((0, 0, 0), (0, 0, 1), a))
+        # žebra nesmí držet prsty – vyříznout kolem prstů mezeru
+        hub = hub.cut(ring(SNAP_OD / 2 + 1.0, SNAP_OD / 2, boss_len, z_split))
+        # zobáček dovnitř: náběh ze strany vstupu osy, rovná zadní plocha
+        z_lip_top = boss_len - SNAP_POS
+        z_lip_bot = z_lip_top - SNAP_LIP_W
+        lead = min(SNAP_LEAD, SNAP_LIP_W - 0.3)
+        lip = (cq.Workplane("XZ")
+               .polyline([(SNAP_ID / 2, z_lip_bot),
+                          (BORE_D / 2 + 0.01, z_lip_bot),
+                          (BORE_D / 2 + 0.01, z_lip_top),
+                          (BORE_D / 2 - 0.05, z_lip_top),
+                          (SNAP_ID / 2, z_lip_top - lead)]).close()
+               .revolve(360, (0, 0, 0), (0, 1, 0)))
+        hub = hub.union(lip)
+        # zářezy mezi prsty
+        for i in range(SNAP_N):
+            slot = (cq.Workplane("XY").workplane(offset=z_split)
+                    .center(SNAP_OD / 2, 0).rect(SNAP_OD, SNAP_SLOT)
+                    .extrude(SNAP_L + 1)
+                    .rotate((0, 0, 0), (0, 0, 1), i * 360 / SNAP_N + 45))
             hub = hub.cut(slot)
-        lip = ring(BORE_D / 2, BORE_D / 2 - SNAP_LIP, 1.5, boss_len - 2.5)
-        cut_slots = None
-        for a in (0, 90):
-            s = (cq.Workplane("XY").workplane(offset=boss_len - SNAP_SLOT_L)
-                 .rect(BOSS_D + 2, 1.2).extrude(SNAP_SLOT_L)
-                 .rotate((0, 0, 0), (0, 0, 1), a))
-            cut_slots = s if cut_slots is None else cut_slots.union(s)
-        hub = hub.union(lip.cut(cut_slots))
+    else:
+        # sražení vstupu díry
+        hub = hub.cut(cq.Workplane("XY").workplane(offset=boss_len - 0.8)
+                      .circle(BORE_D / 2).workplane(offset=0.8)
+                      .circle(BORE_D / 2 + 0.8).loft())
     return hub
 
 
